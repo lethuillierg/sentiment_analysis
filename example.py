@@ -14,15 +14,17 @@ from nltk.corpus import stopwords
 
 sia = SentimentIntensityAnalyzer()
 
-# Download nltk data (if required)
-try:
-    nltk.data.find('tokenizers/punkt')
-    nltk.data.find('corpora/stopwords')
-    nltk.data.find('sentiment/vader_lexicon.zip')
-except LookupError:
-    nltk.download('punkt')
-    nltk.download('stopwords')
-    nltk.download('vader_lexicon')
+
+def init():
+    # Download nltk data (if required)
+    try:
+        nltk.data.find('tokenizers/punkt')
+        nltk.data.find('corpora/stopwords')
+        nltk.data.find('sentiment/vader_lexicon.zip')
+    except LookupError:
+        nltk.download('punkt')
+        nltk.download('stopwords')
+        nltk.download('vader_lexicon')
 
 
 def count_words(iliad: str) -> int:
@@ -35,12 +37,23 @@ def download_Iliad() -> str:
     return requests.get(url).text
 
 
-def get_Iliad() -> str:
-    iliad = download_Iliad()
+def remove_header_and_footer(iliad: str) -> str:
+    """
+    Remove the header (preface) and the footer (footnotes)
+    as they are not part of the original poem
+    """
 
+    # first, identify the _index_ of the last sentence of the header:
+    # `ENGLISH BLANK VERSE.`
     index_end_header = iliad.find("ENGLISH BLANK VERSE.")
+
+    # second, identify the _index_ of the first sentence of the footer:
+    # `FOOTNOTES`
     index_start_footer = iliad.find("FOOTNOTES")
 
+    # last, return the part of the text between those two indices
+    # (in other words, discard the header, between indices 0 and `index_end_header`
+    #  and discard the footer, between indices `index_start_footer` and -1)
     return iliad[index_end_header: index_start_footer]
 
 
@@ -113,21 +126,21 @@ def clean_poem(iliad: str) -> str:
     Clean the poem by removing digits and translator's comments
     """
 
-    # 1. remove the book headers (they are indeed not part of the original poem)
+    # 1. remove any text that is not part of the original poem
+    iliad = remove_header_and_footer(iliad)
     iliad = remove_book_headers(iliad)
-
-    # 1. using a regex, replace the newlines with a space
+    # 2. using a regex, replace the newlines with a space
     # `\r\n` => new line
     iliad = re.sub('\r\n', ' ', iliad)
-    # 2. remove all digits using the maketrans+translate idiom
+    # 3. remove all digits using the maketrans+translate idiom
     iliad = iliad.translate(str.maketrans('', '', string.digits))
-    # 3. remove the comments from the translator:
-    # 3a. first, remove everything between square brackets
+    # 4. remove the comments from the translator:
+    # 4a. first, remove everything between square brackets
     #     (see: https://stackoverflow.com/a/14599280)
     iliad = re.sub("[\[].*?[\]]", "", iliad)
-    # 3b. then, remove the `-Tr`
+    # 4b. then, remove the `-Tr`
     iliad = iliad.replace('—Tr.', '')
-    # 4. replace consecutive spaces with only one
+    # 5. replace consecutive spaces with only one
     iliad = re.sub('\s+', ' ', iliad)
 
     return iliad
@@ -166,18 +179,17 @@ def sentiment_analysis(iliad: str) -> None:
     # just pretty print the score object (interpreted as a JSON)
     print(json.dumps(scores, indent=4))
 
+init()
 
-iliad = get_Iliad()
-
-print(f"The download text contains {count_words(iliad)} words")
+iliad = download_Iliad()
+print(f"The downloaded text contains {count_words(iliad)} words")
 
 iliad = clean_poem(iliad)
+print(f"The Iliad itself contains {count_words(iliad)} words")
+
 iliad = modernize_sentences(iliad)
 
-print(f"The Iliad contains {count_words(iliad)} words")
-
 iliad = remove_stopwords(iliad)
-
 print(f"The Iliad without stopwords contains {count_words(iliad)} words")
 
 sentiment_analysis(iliad)
